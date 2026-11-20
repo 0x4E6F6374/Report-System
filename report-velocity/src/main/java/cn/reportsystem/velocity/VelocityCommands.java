@@ -39,6 +39,9 @@ public final class VelocityCommands {
 
         CommandMeta reportsMeta = manager.metaBuilder("reports").aliases("rpt").plugin(plugin).build();
         manager.register(reportsMeta, new ReportsCommand());
+
+        CommandMeta languageMeta = manager.metaBuilder("language").aliases("lang").plugin(plugin).build();
+        manager.register(languageMeta, new LanguageCmd());
     }
 
     private void reply(CommandSource source, String text) {
@@ -64,12 +67,12 @@ public final class VelocityCommands {
         public void execute(Invocation invocation) {
             CommandSource source = invocation.source();
             if (!source.hasPermission(Permissions.USE)) {
-                reply(source, plugin.messages().format(Messages.NO_PERMISSION));
+                reply(source, plugin.msgFor(source).format(Messages.NO_PERMISSION));
                 return;
             }
             String[] args = invocation.arguments();
             if (args.length > 0 && "gui".equalsIgnoreCase(args[0])) {
-                reply(source, plugin.messages().format(Messages.GUI_UNSUPPORTED));
+                reply(source, plugin.msgFor(source).format(Messages.GUI_UNSUPPORTED));
                 return;
             }
             plugin.playerCommands().submit(new CommandContext(new VelocitySender(source), args));
@@ -96,29 +99,29 @@ public final class VelocityCommands {
         public void execute(Invocation invocation) {
             CommandSource source = invocation.source();
             if (!source.hasPermission(Permissions.ADMIN)) {
-                reply(source, plugin.messages().format(Messages.NO_PERMISSION));
+                reply(source, plugin.msgFor(source).format(Messages.NO_PERMISSION));
                 return;
             }
             String[] args = invocation.arguments();
 
             if (args.length > 0 && "reload".equalsIgnoreCase(args[0])) {
                 if (!source.hasPermission(Permissions.RELOAD)) {
-                    reply(source, plugin.messages().format(Messages.NO_PERMISSION));
+                    reply(source, plugin.msgFor(source).format(Messages.NO_PERMISSION));
                     return;
                 }
                 try {
                     plugin.reloadAll();
-                    reply(source, plugin.messages().format(Messages.RELOADED));
+                    reply(source, plugin.msgFor(source).format(Messages.RELOADED));
                 } catch (IOException e) {
                     plugin.logger().error("重载配置失败", e);
-                    reply(source, plugin.messages().format(Messages.INTERNAL_ERROR));
+                    reply(source, plugin.msgFor(source).format(Messages.INTERNAL_ERROR));
                 }
                 return;
             }
 
             if (args.length > 0 && "tp".equalsIgnoreCase(args[0])
                     && !source.hasPermission(Permissions.TELEPORT)) {
-                reply(source, plugin.messages().format(Messages.NO_PERMISSION));
+                reply(source, plugin.msgFor(source).format(Messages.NO_PERMISSION));
                 return;
             }
 
@@ -132,6 +135,23 @@ public final class VelocityCommands {
                 return List.of("list", "view", "claim", "resolve", "reject", "tp", "stats", "reload");
             }
             return Collections.emptyList();
+        }
+    }
+
+    private final class LanguageCmd implements SimpleCommand {
+
+        @Override
+        public void execute(Invocation invocation) {
+            plugin.languageCommand().handle(new CommandContext(
+                    new VelocitySender(invocation.source()), invocation.arguments()));
+        }
+
+        @Override
+        public List<String> suggest(Invocation invocation) {
+            String[] args = invocation.arguments();
+            // 输入 "/language " 时 arguments 是 [""] 而不是空数组
+            String prefix = args.length == 1 ? args[0] : "";
+            return plugin.languageCommand().completions(prefix);
         }
     }
 }
