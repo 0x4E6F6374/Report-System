@@ -1,0 +1,72 @@
+name: release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 要构建并发布的标签，例如 v1.0.0
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+
+      - name: 准备 JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      # 26.3 的 profile 通过 jdkToolchain 找 JDK 25，CI 上没有 ~/.m2/toolchains.xml，需要现生成
+      - name: 生成 toolchains
+        run: |
+          cat > toolchains.xml <<'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <toolchains>
+            <toolchain>
+              <type>jdk</type>
+              <provides><version>25</version></provides>
+              <configuration><jdkHome>${JAVA_HOME}</jdkHome></configuration>
+            </toolchain>
+          </toolchains>
+          EOF
+
+      - name: 构建默认产物
+        run: mvn -B -ntp clean package
+
+      # 不能带 clean，否则会删掉上一步的 1.21.11 产物
+      - name: 构建 26.3 产物
+        run: mvn -B -ntp -t toolchains.xml -pl report-bukkit-modern -am -Pmc26 package -DskipTests
+
+      - name: 收集产物
+        run: |
+          mkdir -p dist
+          cp report-bukkit-legacy/target/ReportSystem-Bukkit-1.8.8.jar dist/
+          cp report-bukkit-modern/target/ReportSystem-Paper-1.21.11.jar dist/
+          cp report-bukkit-modern/target/ReportSystem-Paper-26.3.jar dist/
+          cp report-velocity/target/ReportSystem-Velocity.jar dist/
+          cp report-bungee/target/ReportSystem-Bungee.jar dist/
+          ls -lh dist
+
+      - name: 发布
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: ReportSystem ${{ env.RELEASE_TAG }}
+          body_path: .github/release-notes/${{ env.RELEASE_TAG }}.md
+          files: dist/*.jar
+          draft: false
+          prerelease: false
