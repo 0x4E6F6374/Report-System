@@ -23,7 +23,7 @@ WaterFall 是 BungeeCord 的 fork，`ReportSystem-Bungee.jar` 可以直接放进
 ## 安装
 
 1. 把对应版本的 jar 放进 `plugins/`（代理端就是代理的 `plugins/`）。
-2. 启动一次，生成 `config.yml`、`messages.yml`、`categories.yml`、`actions.yml`。
+2. 启动一次，生成 `config.yml`、`categories.yml`、`actions.yml` 和 `lang/` 语言目录。
 3. 改 `config.yml` 里的 `server-id` 和 `storage`。
 4. 重启或执行 `/reports reload`。
 
@@ -73,6 +73,7 @@ PostgreSQL 用 `CREATE DATABASE reportsystem;` 即可，字符集跟着模板库
 | `/reports tp <编号>` | 传送到举报现场 |
 | `/reports stats` | 各状态数量 |
 | `/reports reload` | 重载配置 |
+| `/language [code\|list]` | 查看或切换自己的语言 |
 
 代理端没有物品栏，`/report gui` 会提示改用命令。
 
@@ -81,6 +82,7 @@ PostgreSQL 用 `CREATE DATABASE reportsystem;` 即可，字符集跟着模板库
 | 节点 | 默认 | 说明 |
 | --- | --- | --- |
 | `reportsystem.use` | 所有人 | 提交举报 |
+| `reportsystem.language` | 所有人 | 切换自己的语言 |
 | `reportsystem.admin` | OP | 查看与处理举报 |
 | `reportsystem.admin.teleport` | OP | 跳转现场 |
 | `reportsystem.admin.reload` | OP | 重载配置 |
@@ -94,6 +96,7 @@ PostgreSQL 用 `CREATE DATABASE reportsystem;` 即可，字符集跟着模板库
 ```yaml
 server-id: survival          # 多服时与代理里的服务器名一致
 default-category: general    # 命令举报时使用的分类
+language: zh_CN              # 服务器默认语言，对应 lang/ 下的文件名
 
 limits:
   cooldown-seconds: 60       # 两次提交之间的间隔
@@ -121,11 +124,30 @@ on-resolve:
   - "ban %target% 被举报违规，编号 %id%"
 ```
 
-### messages.yml
+点击菜单里的分类后，玩家需要在聊天栏输入理由；`gui-cancel-keyword` 是放弃输入的关键词。
 
-全部文案。颜色用 `&` 前缀，`%prefix%` 是消息前缀，其余 `%xxx%` 是占位符。
+## 多语言
 
-`gui-cancel-keyword` 是菜单举报流程里取消输入的关键词。
+语言文件放在插件目录的 `lang/` 下，一个语言一个文件：
+
+```
+plugins/ReportSystem/lang/
+├── index.txt      ← 语言清单，每行一个 locale，新增语言要在这里登记
+├── zh_CN.yml
+└── en_US.yml
+```
+
+`config.yml` 的 `language` 决定服务器默认语言；玩家可以用 `/language <代码>` 切换自己的语言，
+选择会存进数据库的 `rs_player_locale` 表，所以在装了共享库的网络里跨子服一致。
+`/language list` 列出当前可用语言。
+
+新增语言：复制一份 `zh_CN.yml` 改成目标语言，文件名即语言代码（如 `ja_JP.yml`），
+然后在 `index.txt` 里加一行 `ja_JP`，`/reports reload` 即可生效。
+
+某条文案在某个语言里缺失时会自动回落到默认语言，不会显示成 key 名。占位符（`%id%`、`%player%` 等）
+必须与原文保持一致，改了名字玩家会看到字面量。
+
+控制台与日志固定使用默认语言，不受 `/language` 影响。
 
 ## 关于跳转现场
 
