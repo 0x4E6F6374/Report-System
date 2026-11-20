@@ -1,0 +1,38 @@
+name: ReportSystem
+version: ${project.version}
+main: cn.reportsystem.paper.PaperPlugin
+api-version: '${api.version}'
+folia-supported: true
+description: Player report system with shared storage across servers.
+author: ReportSystem
+
+commands:
+  report:
+    description: Submit a report or open the report menu
+    usage: /report <player> <reason>
+    aliases: [rep]
+  reports:
+    description: Review and handle reports
+    usage: /reports <list|view|claim|resolve|reject|tp|stats|reload>
+    aliases: [rpt]
+    permission: reportsystem.admin
+
+permissions:
+  reportsystem.use:
+    default: true
+    description: Submit reports
+  reportsystem.admin:
+    default: op
+    description: Review and handle reports
+  reportsystem.admin.teleport:
+    default: op
+    description: Teleport to a report location
+  reportsystem.admin.reload:
+    default: op
+    description: Reload configuration
+  reportsystem.notify:
+    default: op
+    description: Receive pending report notifications on join
+  reportsystem.bypass.cooldown:
+    default: false
+    description: Bypass report cooldown and daily limits
