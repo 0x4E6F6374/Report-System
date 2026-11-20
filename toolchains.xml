@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<toolchains>
+  <toolchain>
+    <type>jdk</type>
+    <provides>
+      <version>21</version>
+      <vendor>zulu</vendor>
+    </provides>
+    <configuration>
+      <jdkHome>C:/Program Files/Zulu/zulu-21</jdkHome>
+    </configuration>
+  </toolchain>
+  <toolchain>
+    <type>jdk</type>
+    <provides>
+      <version>25</version>
+      <vendor>zulu</vendor>
+    </provides>
+    <configuration>
+      <jdkHome>C:/Program Files/Zulu/zulu-25</jdkHome>
+    </configuration>
+  </toolchain>
+</toolchains>
