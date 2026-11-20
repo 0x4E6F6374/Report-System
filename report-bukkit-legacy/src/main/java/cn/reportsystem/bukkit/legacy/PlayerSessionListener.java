@@ -1,6 +1,7 @@
 package cn.reportsystem.bukkit.legacy;
 
 import cn.reportsystem.core.command.Permissions;
+import cn.reportsystem.core.i18n.MessageService;
 import cn.reportsystem.core.i18n.Messages;
 import cn.reportsystem.core.model.PendingTeleport;
 import cn.reportsystem.core.model.ReportStatus;
@@ -14,43 +15,52 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 
 import java.util.Optional;
+import java.util.UUID;
 
-public final class JoinListener implements Listener {
+public final class PlayerSessionListener implements Listener {
 
     private final ReportSystemPlugin plugin;
 
-    public JoinListener(ReportSystemPlugin plugin) {
+    public PlayerSessionListener(ReportSystemPlugin plugin) {
         this.plugin = plugin;
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onJoin(PlayerJoinEvent event) {
         final Player player = event.getPlayer();
+        final UUID uuid = player.getUniqueId();
+        final boolean notify = plugin.config().notify.onJoinPending
+                && player.hasPermission(Permissions.NOTIFY);
+
         plugin.scheduler().runAsync(new Runnable() {
             @Override
             public void run() {
+                // 先从库里取回玩家上次选择的语言，后续消息才不会是默认语言
+                plugin.locales().refresh(uuid);
                 consumeTeleport(player);
-            }
-        });
-        if (plugin.config().notify.onJoinPending && player.hasPermission(Permissions.NOTIFY)) {
-            plugin.scheduler().runAsync(new Runnable() {
-                @Override
-                public void run() {
+                if (notify) {
                     notifyPending(player);
                 }
-            });
-        }
+            }
+        });
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onQuit(PlayerQuitEvent event) {
+        plugin.locales().forget(event.getPlayer().getUniqueId());
+        plugin.chatTracker().forget(event.getPlayer().getUniqueId());
     }
 
     private void consumeTeleport(final Player player) {
         try {
-            Optional<PendingTeleport> pending = plugin.teleports().consume(player.getUniqueId());
-            if (!pending.isPresent()) {
+            Optional<PendingTeleport> found = plugin.teleports().consume(player.getUniqueId());
+            if (!found.isPresent()) {
                 return;
             }
-            final PendingTeleport target = pending.get();
+            final PendingTeleport target = found.get();
             if (target.getExpiresAt() < System.currentTimeMillis()) {
                 return;
             }
@@ -63,7 +73,7 @@ public final class JoinListener implements Listener {
                         return;
                     }
                     player.teleport(new Location(world, target.getX(), target.getY(), target.getZ()));
-                    player.sendMessage(plugin.messages().format(Messages.TELEPORT_ARRIVED));
+                    player.sendMessage(plugin.msgFor(player).format(Messages.TELEPORT_ARRIVED));
                 }
             }, 20L);
         } catch (StorageException e) {
@@ -76,7 +86,8 @@ public final class JoinListener implements Listener {
         if (count <= 0) {
             return;
         }
-        final String text = plugin.messages().format(Messages.NOTIFY_PENDING_COUNT, "count", count);
+        final MessageService messages = plugin.msgFor(player);
+        final String text = messages.format(Messages.NOTIFY_PENDING_COUNT, "count", count);
         plugin.scheduler().runGlobal(new Runnable() {
             @Override
             public void run() {

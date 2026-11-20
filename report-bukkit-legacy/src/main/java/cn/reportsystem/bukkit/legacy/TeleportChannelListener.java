@@ -81,7 +81,7 @@ public final class TeleportChannelListener implements PluginMessageListener {
                     return;
                 }
                 player.teleport(new Location(world, target.getX(), target.getY(), target.getZ()));
-                player.sendMessage(plugin.messages().format(Messages.TELEPORT_ARRIVED));
+                player.sendMessage(plugin.msgFor(player).format(Messages.TELEPORT_ARRIVED));
             }
         });
     }

@@ -20,12 +20,12 @@ public final class ReportCommand implements CommandExecutor {
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (!sender.hasPermission(Permissions.USE)) {
-            sender.sendMessage(plugin.messages().format(Messages.NO_PERMISSION));
+            sender.sendMessage(plugin.msgFor(sender).format(Messages.NO_PERMISSION));
             return true;
         }
         if (args.length > 0 && "gui".equalsIgnoreCase(args[0])) {
             if (!(sender instanceof Player)) {
-                sender.sendMessage(plugin.messages().format(Messages.CONSOLE_NOT_ALLOWED));
+                sender.sendMessage(plugin.msgFor(sender).format(Messages.CONSOLE_NOT_ALLOWED));
                 return true;
             }
             plugin.gui().openTargets((Player) sender);

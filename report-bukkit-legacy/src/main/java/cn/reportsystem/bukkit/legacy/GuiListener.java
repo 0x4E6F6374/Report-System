@@ -66,6 +66,6 @@ public final class GuiListener implements Listener {
         }
         plugin.chatInput().expect(player.getUniqueId(), holder.getTarget(), categoryKey);
         player.closeInventory();
-        player.sendMessage(plugin.messages().format(Messages.GUI_REASON_PROMPT));
+        player.sendMessage(plugin.msgFor(player).format(Messages.GUI_REASON_PROMPT));
     }
 }
