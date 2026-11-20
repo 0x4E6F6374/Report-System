@@ -1,0 +1,5 @@
+name: ReportSystem
+main: cn.reportsystem.bungee.ReportSystemBungee
+version: ${project.version}
+author: ReportSystem
+description: Player report system with shared storage across servers.
