@@ -1,0 +1,55 @@
+gui:
+  rows: 6
+  title: "&8举报"
+
+categories:
+  general:
+    display: "&f其他"
+    material: PAPER
+    slot: 22
+    permission: ""
+    aliases:
+      - other
+      - misc
+    description:
+      - "&7不属于其他分类的情况"
+
+  cheating:
+    display: "&c使用外挂"
+    material: DIAMOND_SWORD
+    slot: 10
+    aliases:
+      - cheat
+      - hack
+      - xray
+    description:
+      - "&7自动瞄准、透视、飞行等"
+
+  chat:
+    display: "&e言语辱骂"
+    material: BOOK
+    slot: 12
+    aliases:
+      - insult
+      - toxic
+    description:
+      - "&7刷屏、辱骂、广告"
+
+  griefing:
+    display: "&6破坏建筑"
+    material: IRON_PICKAXE
+    slot: 14
+    aliases:
+      - grief
+      - build
+    description:
+      - "&7拆家、放岩浆、偷窃"
+
+  teaming:
+    display: "&b团队作弊"
+    material: ENDER_PEARL
+    slot: 16
+    aliases:
+      - team
+    description:
+      - "&7组队作弊、互刷"

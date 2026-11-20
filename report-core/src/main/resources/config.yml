@@ -1,0 +1,38 @@
+server-id: server
+default-category: general
+
+storage:
+  type: sqlite
+  host: 127.0.0.1
+  port: 3306
+  database: reportsystem
+  username: root
+  password: ""
+  file: reports.db
+  pool-size: 4
+
+limits:
+  cooldown-seconds: 60
+  daily-limit: 10
+  duplicate-window-minutes: 30
+  max-reason-length: 200
+
+evidence:
+  capture-position: true
+  capture-client-version: true
+  chat-lines: 10
+
+notify:
+  on-join-pending: true
+  webhook:
+    enabled: false
+    url: ""
+    format: discord
+    username: ReportSystem
+    notify-on-create: true
+    notify-on-close: true
+
+cleanup:
+  enabled: true
+  retain-days: 30
+  interval-hours: 12
