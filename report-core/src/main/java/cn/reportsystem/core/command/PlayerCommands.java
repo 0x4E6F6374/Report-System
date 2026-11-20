@@ -3,6 +3,7 @@ package cn.reportsystem.core.command;
 import cn.reportsystem.core.config.PluginConfig;
 import cn.reportsystem.core.i18n.MessageService;
 import cn.reportsystem.core.i18n.Messages;
+import cn.reportsystem.core.locale.LocaleService;
 import cn.reportsystem.core.model.PlayerRef;
 import cn.reportsystem.core.platform.PluginLogger;
 import cn.reportsystem.core.platform.PlayerDirectory;
@@ -16,15 +17,15 @@ import java.util.Optional;
 public final class PlayerCommands {
 
     private final ReportService service;
-    private final MessageService messages;
+    private final LocaleService locales;
     private final PlayerDirectory players;
     private final PluginConfig config;
     private final PluginLogger logger;
 
-    public PlayerCommands(ReportService service, MessageService messages, PlayerDirectory players,
+    public PlayerCommands(ReportService service, LocaleService locales, PlayerDirectory players,
                           PluginConfig config, PluginLogger logger) {
         this.service = service;
-        this.messages = messages;
+        this.locales = locales;
         this.players = players;
         this.config = config;
         this.logger = logger;
@@ -32,6 +33,8 @@ public final class PlayerCommands {
 
     public void submit(CommandContext context) {
         Sender sender = context.sender();
+        MessageService messages = locales.messagesFor(sender);
+
         if (!sender.isPlayer()) {
             reply(sender, messages.format(Messages.CONSOLE_NOT_ALLOWED));
             return;

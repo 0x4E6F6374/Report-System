@@ -10,6 +10,7 @@ public final class PluginConfig {
 
     public String serverId = "server";
     public String defaultCategory = "general";
+    public String language = "zh_CN";
     public Storage storage = new Storage();
     public Limits limits = new Limits();
     public Evidence evidence = new Evidence();
@@ -70,6 +71,9 @@ public final class PluginConfig {
         List<String> problems = new ArrayList<String>();
         if (serverId == null || serverId.trim().isEmpty()) {
             problems.add("server-id 不能为空");
+        }
+        if (language == null || language.trim().isEmpty()) {
+            problems.add("language 不能为空");
         }
         if (storage == null) {
             problems.add("缺少 storage 配置");

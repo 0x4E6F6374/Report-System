@@ -1,5 +1,6 @@
 server-id: server
 default-category: general
+language: zh_CN
 
 storage:
   type: sqlite

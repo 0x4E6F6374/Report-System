@@ -83,6 +83,25 @@ public class MySqlDialect implements SqlDialect {
     }
 
     @Override
+    public List<String> localeStatements() {
+        List<String> statements = new ArrayList<String>();
+        statements.add("CREATE TABLE IF NOT EXISTS rs_player_locale ("
+                + " player_uuid CHAR(36) NOT NULL,"
+                + " locale VARCHAR(16) NOT NULL,"
+                + " updated_at BIGINT NOT NULL,"
+                + " PRIMARY KEY (player_uuid)"
+                + ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+        return Collections.unmodifiableList(statements);
+    }
+
+    @Override
+    public String upsertPlayerLocale() {
+        return "INSERT INTO rs_player_locale (player_uuid, locale, updated_at)"
+                + " VALUES (?, ?, ?)"
+                + " ON DUPLICATE KEY UPDATE locale = VALUES(locale), updated_at = VALUES(updated_at)";
+    }
+
+    @Override
     public String upsertPendingTeleport() {
         return "INSERT INTO rs_pending_teleport"
                 + " (player_uuid, server_name, world, x, y, z, expires_at)"

@@ -12,5 +12,12 @@ public interface SqlDialect {
 
     List<String> schemaStatements();
 
+    /**
+     * schema v2：玩家语言偏好。
+     */
+    List<String> localeStatements();
+
     String upsertPendingTeleport();
+
+    String upsertPlayerLocale();
 }

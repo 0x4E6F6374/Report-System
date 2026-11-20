@@ -22,6 +22,14 @@ public final class Messages {
     public static final String GUI_TOO_MANY_TARGETS = "gui-too-many-targets";
     public static final String GUI_UNSUPPORTED = "gui-unsupported";
 
+    public static final String LANGUAGE_NAME = "language-name";
+    public static final String LANGUAGE_CURRENT = "language-current";
+    public static final String LANGUAGE_CHANGED = "language-changed";
+    public static final String LANGUAGE_UNKNOWN = "language-unknown";
+    public static final String LANGUAGE_LIST_HEADER = "language-list-header";
+    public static final String LANGUAGE_LIST_ENTRY = "language-list-entry";
+    public static final String LANGUAGE_USAGE = "language-usage";
+
     public static final String REPORT_NOT_FOUND = "report-not-found";
     public static final String REPORT_ALREADY_CLOSED = "report-already-closed";
     public static final String CLAIMED = "claimed";
@@ -39,6 +47,15 @@ public final class Messages {
     public static final String VIEW_EVIDENCE = "view-evidence";
     public static final String VIEW_NO_EVIDENCE = "view-no-evidence";
     public static final String VIEW_NOTE = "view-note";
+    public static final String VIEW_KEY_TARGET = "view-key-target";
+    public static final String VIEW_KEY_CATEGORY = "view-key-category";
+    public static final String VIEW_KEY_STATUS = "view-key-status";
+    public static final String VIEW_KEY_TIME = "view-key-time";
+    public static final String VIEW_KEY_REPORTER = "view-key-reporter";
+    public static final String VIEW_KEY_REASON = "view-key-reason";
+    public static final String VIEW_KEY_POSITION = "view-key-position";
+    public static final String VIEW_KEY_HANDLER = "view-key-handler";
+    public static final String VIEW_KEY_NOTE = "view-key-note";
 
     public static final String TELEPORT_STARTED = "teleport-started";
     public static final String TELEPORT_SAME_SERVER = "teleport-same-server";

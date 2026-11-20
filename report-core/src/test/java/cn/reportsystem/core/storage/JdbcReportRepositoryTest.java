@@ -128,6 +128,21 @@ class JdbcReportRepositoryTest {
         assertFalse(teleports.consume(player).isPresent());
     }
 
+    @Test
+    void playerLocaleUpsertsInsteadOfDuplicating() {
+        JdbcPlayerLocaleRepository locales =
+                new JdbcPlayerLocaleRepository(provider, new SqliteDialect());
+        UUID player = UUID.randomUUID();
+
+        assertFalse(locales.find(player).isPresent());
+
+        locales.save(player, "en_US");
+        assertEquals("en_US", locales.find(player).get());
+
+        locales.save(player, "zh_CN");
+        assertEquals("zh_CN", locales.find(player).get());
+    }
+
     private Report sample(String targetName) {
         Report report = new Report();
         report.setReporter(new PlayerRef(UUID.randomUUID(), "reporter"));

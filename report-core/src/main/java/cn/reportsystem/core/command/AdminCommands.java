@@ -2,6 +2,7 @@ package cn.reportsystem.core.command;
 
 import cn.reportsystem.core.i18n.MessageService;
 import cn.reportsystem.core.i18n.Messages;
+import cn.reportsystem.core.locale.LocaleService;
 import cn.reportsystem.core.model.Evidence;
 import cn.reportsystem.core.model.Page;
 import cn.reportsystem.core.model.PlayerRef;
@@ -31,46 +32,48 @@ public final class AdminCommands {
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(ZoneId.systemDefault());
 
     private final ReportService service;
-    private final MessageService messages;
+    private final LocaleService locales;
     private final TeleportExecutor teleporter;
     private final PluginLogger logger;
 
-    public AdminCommands(ReportService service, MessageService messages,
+    public AdminCommands(ReportService service, LocaleService locales,
                          TeleportExecutor teleporter, PluginLogger logger) {
         this.service = service;
-        this.messages = messages;
+        this.locales = locales;
         this.teleporter = teleporter;
         this.logger = logger;
     }
 
     public void handle(CommandContext context) {
+        MessageService messages = locales.messagesFor(context.sender());
         if (context.length() == 0) {
             reply(context.sender(), messages.format(Messages.USAGE_ADMIN));
             return;
         }
+
         String sub = context.arg(0).toLowerCase(Locale.ROOT);
         try {
             switch (sub) {
                 case "list":
-                    list(context);
+                    list(context, messages);
                     break;
                 case "view":
-                    view(context);
+                    view(context, messages);
                     break;
                 case "claim":
-                    claim(context);
+                    claim(context, messages);
                     break;
                 case "resolve":
-                    close(context, true);
+                    close(context, messages, true);
                     break;
                 case "reject":
-                    close(context, false);
+                    close(context, messages, false);
                     break;
                 case "tp":
-                    teleport(context);
+                    teleport(context, messages);
                     break;
                 case "stats":
-                    stats(context);
+                    stats(context, messages);
                     break;
                 default:
                     reply(context.sender(), messages.format(Messages.USAGE_ADMIN));
@@ -81,7 +84,7 @@ public final class AdminCommands {
         }
     }
 
-    private void list(CommandContext context) {
+    private void list(CommandContext context, MessageService messages) {
         ReportStatus status = parseStatus(context.arg(1));
         int page = parsePage(context.arg(2));
         Page<Report> result = service.list(status, page, PAGE_SIZE);
@@ -98,15 +101,15 @@ public final class AdminCommands {
                     "id", report.getId(),
                     "target", report.getTarget().getName(),
                     "category", report.getCategory(),
-                    "status", statusLabel(report.getStatus()),
+                    "status", statusLabel(messages, report.getStatus()),
                     "time", TIME_FORMAT.format(Instant.ofEpochMilli(report.getCreatedAt()))));
         }
         builder.append('\n').append(messages.format(Messages.LIST_FOOTER, "total", result.getTotal()));
         reply(context.sender(), builder.toString());
     }
 
-    private void view(CommandContext context) {
-        Optional<Report> found = findById(context);
+    private void view(CommandContext context, MessageService messages) {
+        Optional<Report> found = findById(context, messages);
         if (!found.isPresent()) {
             return;
         }
@@ -115,38 +118,37 @@ public final class AdminCommands {
 
         StringBuilder builder = new StringBuilder();
         builder.append(messages.format(Messages.VIEW_HEADER, "id", report.getId()));
-        appendLine(builder, Messages.VIEW_LINE, "key", "被举报人", "value", report.getTarget().getName());
-        appendLine(builder, Messages.VIEW_LINE, "key", "类型", "value", report.getCategory());
-        appendLine(builder, Messages.VIEW_LINE, "key", "状态", "value", statusLabel(report.getStatus()));
-        appendLine(builder, Messages.VIEW_LINE, "key", "提交时间",
-                "value", TIME_FORMAT.format(Instant.ofEpochMilli(report.getCreatedAt())));
-        appendLine(builder, Messages.VIEW_LINE, "key", "举报人", "value", report.getReporter().getName());
-        appendLine(builder, Messages.VIEW_LINE, "key", "理由", "value", report.getReason());
+        viewLine(builder, messages, Messages.VIEW_KEY_TARGET, report.getTarget().getName());
+        viewLine(builder, messages, Messages.VIEW_KEY_CATEGORY, report.getCategory());
+        viewLine(builder, messages, Messages.VIEW_KEY_STATUS, statusLabel(messages, report.getStatus()));
+        viewLine(builder, messages, Messages.VIEW_KEY_TIME,
+                TIME_FORMAT.format(Instant.ofEpochMilli(report.getCreatedAt())));
+        viewLine(builder, messages, Messages.VIEW_KEY_REPORTER, report.getReporter().getName());
+        viewLine(builder, messages, Messages.VIEW_KEY_REASON, report.getReason());
 
         if (evidence != null) {
-            appendLine(builder, Messages.VIEW_EVIDENCE,
+            appendLine(builder, messages, Messages.VIEW_EVIDENCE,
                     "server", evidence.getServerName(),
                     "world", evidence.getWorld() == null ? "-" : evidence.getWorld());
             if (evidence.hasPosition()) {
-                appendLine(builder, Messages.VIEW_LINE, "key", "坐标", "value",
+                viewLine(builder, messages, Messages.VIEW_KEY_POSITION,
                         round(evidence.getX()) + " " + round(evidence.getY()) + " " + round(evidence.getZ()));
             }
         } else {
-            appendLine(builder, Messages.VIEW_NO_EVIDENCE);
+            appendLine(builder, messages, Messages.VIEW_NO_EVIDENCE);
         }
 
         if (report.getHandling() != null) {
-            appendLine(builder, Messages.VIEW_LINE, "key", "处理人", "value",
+            viewLine(builder, messages, Messages.VIEW_KEY_HANDLER,
                     report.getHandling().getHandler().getName());
             if (report.getHandling().getNote() != null) {
-                appendLine(builder, Messages.VIEW_LINE, "key", "备注", "value",
-                        report.getHandling().getNote());
+                viewLine(builder, messages, Messages.VIEW_KEY_NOTE, report.getHandling().getNote());
             }
         }
 
         List<ReportNote> notes = service.notes(report.getId());
         for (ReportNote note : notes) {
-            appendLine(builder, Messages.VIEW_NOTE,
+            appendLine(builder, messages, Messages.VIEW_NOTE,
                     "author", note.getAuthor().getName(),
                     "content", note.getContent(),
                     "time", TIME_FORMAT.format(Instant.ofEpochMilli(note.getCreatedAt())));
@@ -154,8 +156,8 @@ public final class AdminCommands {
         reply(context.sender(), builder.toString());
     }
 
-    private void claim(CommandContext context) {
-        Optional<Report> found = findById(context);
+    private void claim(CommandContext context, MessageService messages) {
+        Optional<Report> found = findById(context, messages);
         if (!found.isPresent()) {
             return;
         }
@@ -166,8 +168,8 @@ public final class AdminCommands {
                 : messages.format(Messages.CLAIMED_BY_OTHER, "id", id));
     }
 
-    private void close(CommandContext context, boolean resolved) {
-        Optional<Report> found = findById(context);
+    private void close(CommandContext context, MessageService messages, boolean resolved) {
+        Optional<Report> found = findById(context, messages);
         if (!found.isPresent()) {
             return;
         }
@@ -187,8 +189,8 @@ public final class AdminCommands {
         reply(context.sender(), messages.format(resolved ? Messages.RESOLVED : Messages.REJECTED, "id", id));
     }
 
-    private void teleport(CommandContext context) {
-        Optional<Report> found = findById(context);
+    private void teleport(CommandContext context, MessageService messages) {
+        Optional<Report> found = findById(context, messages);
         if (!found.isPresent()) {
             return;
         }
@@ -221,7 +223,7 @@ public final class AdminCommands {
         }
     }
 
-    private void stats(CommandContext context) {
+    private void stats(CommandContext context, MessageService messages) {
         Map<ReportStatus, Long> counts = service.stats();
         reply(context.sender(), messages.format(Messages.STATS,
                 "pending", counts.get(ReportStatus.PENDING),
@@ -230,7 +232,7 @@ public final class AdminCommands {
                 "rejected", counts.get(ReportStatus.REJECTED)));
     }
 
-    private Optional<Report> findById(CommandContext context) {
+    private Optional<Report> findById(CommandContext context, MessageService messages) {
         Long id = context.argAsLong(1);
         if (id == null) {
             reply(context.sender(), messages.format(Messages.USAGE_ADMIN));
@@ -243,7 +245,7 @@ public final class AdminCommands {
         return found;
     }
 
-    private String statusLabel(ReportStatus status) {
+    private String statusLabel(MessageService messages, ReportStatus status) {
         switch (status) {
             case PENDING:
                 return messages.format(Messages.STATUS_PENDING);
@@ -284,7 +286,13 @@ public final class AdminCommands {
         return new PlayerRef(uuid == null ? new UUID(0L, 0L) : uuid, sender.getName());
     }
 
-    private void appendLine(StringBuilder builder, String key, Object... placeholders) {
+    private void viewLine(StringBuilder builder, MessageService messages, String labelKey, String value) {
+        appendLine(builder, messages, Messages.VIEW_LINE,
+                "key", messages.format(labelKey), "value", value);
+    }
+
+    private void appendLine(StringBuilder builder, MessageService messages, String key,
+                            Object... placeholders) {
         builder.append('\n').append(messages.format(key, placeholders));
     }
 

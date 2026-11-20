@@ -34,6 +34,21 @@ public final class MessageService {
         return new MessageService(new LinkedHashMap<String, String>(raw));
     }
 
+    /**
+     * 把语言文件合并到基准之上，缺失的 key 自然由基准补齐。
+     * 合并成单一 Map 而不是链式回退，是为了让 format/raw/has/prefix 共用同一条查找路径。
+     */
+    public static MessageService of(Map<String, String> primary, Map<String, String> base) {
+        Map<String, String> merged = new LinkedHashMap<String, String>();
+        if (base != null) {
+            merged.putAll(base);
+        }
+        if (primary != null) {
+            merged.putAll(primary);
+        }
+        return new MessageService(merged);
+    }
+
     public String prefix() {
         return prefix;
     }

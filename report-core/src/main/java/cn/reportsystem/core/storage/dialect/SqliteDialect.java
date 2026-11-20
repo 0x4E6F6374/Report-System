@@ -87,4 +87,24 @@ public class SqliteDialect implements SqlDialect {
                 + " z = excluded.z,"
                 + " expires_at = excluded.expires_at";
     }
+
+    @Override
+    public List<String> localeStatements() {
+        List<String> statements = new ArrayList<String>();
+        statements.add("CREATE TABLE IF NOT EXISTS rs_player_locale ("
+                + " player_uuid TEXT NOT NULL PRIMARY KEY,"
+                + " locale TEXT NOT NULL,"
+                + " updated_at INTEGER NOT NULL"
+                + ")");
+        return Collections.unmodifiableList(statements);
+    }
+
+    @Override
+    public String upsertPlayerLocale() {
+        return "INSERT INTO rs_player_locale (player_uuid, locale, updated_at)"
+                + " VALUES (?, ?, ?)"
+                + " ON CONFLICT (player_uuid) DO UPDATE SET"
+                + " locale = excluded.locale,"
+                + " updated_at = excluded.updated_at";
+    }
 }
