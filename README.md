@@ -132,7 +132,6 @@ on-resolve:
 
 ```
 plugins/ReportSystem/lang/
-├── index.txt      ← 语言清单，每行一个 locale，新增语言要在这里登记
 ├── zh_CN.yml
 └── en_US.yml
 ```
@@ -142,7 +141,7 @@ plugins/ReportSystem/lang/
 `/language list` 列出当前可用语言。
 
 新增语言：复制一份 `zh_CN.yml` 改成目标语言，文件名即语言代码（如 `ja_JP.yml`），
-然后在 `index.txt` 里加一行 `ja_JP`，`/reports reload` 即可生效。
+放进 `lang/` 后执行 `/reports reload` 即可生效，不需要登记任何清单。
 
 某条文案在某个语言里缺失时会自动回落到默认语言，不会显示成 key 名。占位符（`%id%`、`%player%` 等）
 必须与原文保持一致，改了名字玩家会看到字面量。

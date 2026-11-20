@@ -4,8 +4,6 @@ import cn.reportsystem.core.config.ConfigLoader;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -17,8 +15,8 @@ import java.util.Set;
 /**
  * 管理 lang 目录下的全部语言。
  *
- * jar 里无法列举目录内容，所以随包提供 lang/index.txt 作为清单；
- * 磁盘上找不到清单时退化为扫描 *.yml，方便服主自行添加语言。
+ * 语言清单直接扫描磁盘上的 *.yml 得到，不需要索引文件；
+ * jar 内自带的语言文件由 ResourceExtractor 枚举自身条目后发现并释放。
  */
 public final class LanguageBundle {
 
@@ -47,7 +45,7 @@ public final class LanguageBundle {
             }
             File file = new File(langDir, candidate + ".yml");
             if (!file.isFile()) {
-                warnings.add("清单里的 " + candidate + " 找不到对应文件 " + file.getName());
+                warnings.add("找不到语言文件 " + file.getName());
                 continue;
             }
             try {
@@ -92,31 +90,23 @@ public final class LanguageBundle {
         return new LanguageBundle(byLocale, raw, effective, warnings);
     }
 
-    private static List<String> discover(File langDir, List<String> warnings) throws IOException {
+    /**
+     * 语言清单直接取自磁盘上实际存在的 .yml，不再依赖索引文件。
+     */
+    private static List<String> discover(File langDir, List<String> warnings) {
         List<String> locales = new ArrayList<String>();
-        File index = new File(langDir, "index.txt");
-        if (index.isFile()) {
-            for (String line : Files.readAllLines(index.toPath(), StandardCharsets.UTF_8)) {
-                String trimmed = line.trim();
-                if (!trimmed.isEmpty() && !trimmed.startsWith("#")) {
-                    locales.add(trimmed);
+        File[] files = langDir.listFiles();
+        if (files != null) {
+            for (File file : files) {
+                String name = file.getName();
+                if (file.isFile() && name.endsWith(".yml")) {
+                    locales.add(name.substring(0, name.length() - 4));
                 }
             }
         }
-
+        Collections.sort(locales);
         if (locales.isEmpty()) {
-            File[] files = langDir.listFiles();
-            if (files != null) {
-                for (File file : files) {
-                    String name = file.getName();
-                    if (name.endsWith(".yml")) {
-                        locales.add(name.substring(0, name.length() - 4));
-                    }
-                }
-            }
-        }
-        if (locales.isEmpty()) {
-            warnings.add("lang 目录为空: " + langDir.getAbsolutePath());
+            warnings.add("lang 目录里没有 .yml 文件: " + langDir.getAbsolutePath());
         }
         return locales;
     }
