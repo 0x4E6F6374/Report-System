@@ -55,7 +55,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-@Plugin(id = "reportsystem", name = "ReportSystem", version = "1.0.0",
+// version 是编译期常量，不会跟随 pom 的 project.version，改版本号时这里要一起改
+@Plugin(id = "reportsystem", name = "ReportSystem", version = "1.0.1",
         description = "Player report system with shared storage across servers",
         authors = {"ReportSystem"})
 public final class ReportSystemVelocity {
