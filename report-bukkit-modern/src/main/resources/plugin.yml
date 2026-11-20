@@ -16,11 +16,18 @@ commands:
     usage: /reports <list|view|claim|resolve|reject|tp|stats|reload>
     aliases: [rpt]
     permission: reportsystem.admin
+  language:
+    description: Show or change your language
+    usage: /language [list|code]
+    aliases: [lang]
 
 permissions:
   reportsystem.use:
     default: true
     description: Submit reports
+  reportsystem.language:
+    default: true
+    description: Change your own language
   reportsystem.admin:
     default: op
     description: Review and handle reports

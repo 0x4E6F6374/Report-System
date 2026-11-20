@@ -3,12 +3,16 @@ package cn.reportsystem.paper;
 import cn.reportsystem.core.chat.ChatInput;
 import cn.reportsystem.core.chat.ChatTracker;
 import cn.reportsystem.core.command.AdminCommands;
+import cn.reportsystem.core.command.LanguageCommand;
 import cn.reportsystem.core.command.PlayerCommands;
 import cn.reportsystem.core.config.Actions;
 import cn.reportsystem.core.config.Categories;
 import cn.reportsystem.core.config.ConfigLoader;
 import cn.reportsystem.core.config.PluginConfig;
+import cn.reportsystem.core.i18n.LanguageBundle;
 import cn.reportsystem.core.i18n.MessageService;
+import cn.reportsystem.core.locale.LocaleService;
+import cn.reportsystem.core.locale.PlayerLocaleRepository;
 import cn.reportsystem.core.notify.WebhookNotifier;
 import cn.reportsystem.core.platform.EvidenceCollector;
 import cn.reportsystem.core.platform.PlayerDirectory;
@@ -19,6 +23,7 @@ import cn.reportsystem.core.service.ReportService;
 import cn.reportsystem.core.storage.ConnectionProvider;
 import cn.reportsystem.core.storage.DialectFactory;
 import cn.reportsystem.core.storage.JdbcPendingTeleportRepository;
+import cn.reportsystem.core.storage.JdbcPlayerLocaleRepository;
 import cn.reportsystem.core.storage.JdbcReportRepository;
 import cn.reportsystem.core.storage.ReportRepository;
 import cn.reportsystem.core.storage.SchemaMigrator;
@@ -26,12 +31,15 @@ import cn.reportsystem.core.storage.SqlDialect;
 import cn.reportsystem.core.storage.StorageConfig;
 import cn.reportsystem.core.storage.StorageException;
 import cn.reportsystem.core.storage.StorageType;
+import cn.reportsystem.core.util.ResourceExtractor;
 import cn.reportsystem.pool.HikariProvider;
 
 import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 
 import org.bukkit.Bukkit;
+import org.bukkit.command.CommandSender;
 import org.bukkit.command.PluginCommand;
+import org.bukkit.entity.Player;
 import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -39,12 +47,14 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 public final class PaperPlugin extends JavaPlugin {
 
     private PluginConfig config;
+    private LanguageBundle languages;
     private MessageService messages;
     private Categories categories;
     private Actions actions;
@@ -52,6 +62,8 @@ public final class PaperPlugin extends JavaPlugin {
     private ConnectionProvider connections;
     private ReportService service;
     private JdbcPendingTeleportRepository teleports;
+    private PlayerLocaleRepository localeRepository;
+    private LocaleService locales;
     private PlayerDirectory players;
     private PluginScheduler scheduler;
     private PluginLogger logger;
@@ -60,6 +72,7 @@ public final class PaperPlugin extends JavaPlugin {
     private ReportGui gui;
     private PlayerCommands playerCommands;
     private AdminCommands adminCommands;
+    private LanguageCommand languageCommand;
     private TeleportExecutor teleporter;
     private TeleportChannelListener channelListener;
 
@@ -74,7 +87,8 @@ public final class PaperPlugin extends JavaPlugin {
             registerCommands();
             registerListeners();
             scheduleCleanup();
-            logger.info("已启用，存储 " + config.storage.type + "，服务端标识 " + config.serverId);
+            logger.info("已启用，存储 " + config.storage.type + "，语言 " + config.language
+                    + "，服务端标识 " + config.serverId);
         } catch (Exception e) {
             logger.error("启用失败", e);
             getServer().getPluginManager().disablePlugin(this);
@@ -86,6 +100,9 @@ public final class PaperPlugin extends JavaPlugin {
         if (channelListener != null) {
             channelListener.unregister();
             channelListener = null;
+        }
+        if (locales != null) {
+            locales.clear();
         }
         if (connections != null) {
             connections.close();
@@ -100,9 +117,13 @@ public final class PaperPlugin extends JavaPlugin {
 
     private void saveDefaults() {
         saveResource("config.yml", false);
-        saveResource("messages.yml", false);
         saveResource("categories.yml", false);
         saveResource("actions.yml", false);
+        try {
+            ResourceExtractor.extractLanguages(new File(getDataFolder(), "lang"));
+        } catch (IOException e) {
+            logger.warn("释放语言文件失败: " + e.getMessage());
+        }
     }
 
     private void loadConfig() throws IOException {
@@ -111,13 +132,19 @@ public final class PaperPlugin extends JavaPlugin {
             throw new IOException("无法创建插件目录 " + folder.getAbsolutePath());
         }
         config = ConfigLoader.readOrCreate(new File(folder, "config.yml"), PluginConfig.class);
-        messages = MessageService.load(new File(folder, "messages.yml"));
+        languages = LanguageBundle.load(new File(folder, "lang"), config.language);
+        messages = languages.forLocale(config.language);
         categories = ConfigLoader.readOrCreate(new File(folder, "categories.yml"), Categories.class);
         actions = ConfigLoader.readOrCreate(new File(folder, "actions.yml"), Actions.class);
+
+        for (String warning : languages.warnings()) {
+            logger.warn("语言包: " + warning);
+        }
 
         List<String> problems = new ArrayList<String>();
         problems.addAll(config.validate());
         problems.addAll(categories.validate());
+        problems.addAll(languages.validate());
         if (!problems.isEmpty()) {
             throw new IOException("配置校验未通过: " + problems);
         }
@@ -152,15 +179,24 @@ public final class PaperPlugin extends JavaPlugin {
         scheduler = new PaperScheduler(this);
         chatTracker = new ChatTracker(Math.max(config.evidence.chatLines * 2, 16));
         chatInput = new ChatInput();
-        gui = new ReportGui(messages, categories, players);
+
+        if (locales == null) {
+            localeRepository = new JdbcPlayerLocaleRepository(connections, dialect);
+            locales = new LocaleService(localeRepository, languages, config.language, logger);
+        } else {
+            locales.rebind(languages);
+        }
+
+        gui = new ReportGui(locales, categories, players);
 
         EvidenceCollector evidence = new PaperEvidenceCollector(config.serverId, config, chatTracker);
         WebhookNotifier webhook = new WebhookNotifier(config.notify.webhook, logger);
         service = new ReportService(repository, config, categories, actions, logger, scheduler,
                 evidence, webhook, new PaperConsoleRunner());
         teleporter = new PaperTeleportExecutor(config.serverId, teleports, logger);
-        adminCommands = new AdminCommands(service, messages, teleporter, logger);
-        playerCommands = new PlayerCommands(service, messages, players, config, logger);
+        adminCommands = new AdminCommands(service, locales, teleporter, logger);
+        playerCommands = new PlayerCommands(service, locales, players, config, logger);
+        languageCommand = new LanguageCommand(locales);
     }
 
     private void registerCommands() {
@@ -175,13 +211,20 @@ public final class PaperPlugin extends JavaPlugin {
             throw new IllegalStateException("plugin.yml 未声明 reports 命令");
         }
         reports.setExecutor(new ReportsCommand(this));
+
+        PluginCommand language = getCommand("language");
+        if (language != null) {
+            LanguageExecutor executor = new LanguageExecutor(this);
+            language.setExecutor(executor);
+            language.setTabCompleter(executor);
+        }
     }
 
     private void registerListeners() {
         PluginManager manager = getServer().getPluginManager();
         manager.registerEvents(new GuiListener(this), this);
         manager.registerEvents(new ChatListener(this), this);
-        manager.registerEvents(new JoinListener(this), this);
+        manager.registerEvents(new PlayerSessionListener(this), this);
 
         channelListener = new TeleportChannelListener(this);
         channelListener.register();
@@ -219,12 +262,25 @@ public final class PaperPlugin extends JavaPlugin {
         Bukkit.getScheduler().runTaskTimerAsynchronously(this, cleanupTask, periodTicks, periodTicks);
     }
 
+    MessageService msgFor(CommandSender sender) {
+        UUID uuid = sender instanceof Player ? ((Player) sender).getUniqueId() : null;
+        return locales.messagesFor(uuid);
+    }
+
     PluginConfig config() {
         return config;
     }
 
     MessageService messages() {
         return messages;
+    }
+
+    LocaleService locales() {
+        return locales;
+    }
+
+    LanguageCommand languageCommand() {
+        return languageCommand;
     }
 
     Categories categories() {

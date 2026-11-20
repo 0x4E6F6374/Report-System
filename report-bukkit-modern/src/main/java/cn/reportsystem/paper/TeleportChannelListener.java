@@ -85,7 +85,7 @@ public final class TeleportChannelListener implements PluginMessageListener {
                 Location destination = new Location(world, target.getX(), target.getY(), target.getZ());
                 player.teleportAsync(destination);
                 player.sendMessage(LEGACY.deserialize(
-                        plugin.messages().format(Messages.TELEPORT_ARRIVED)));
+                        plugin.msgFor(player).format(Messages.TELEPORT_ARRIVED)));
             }
         });
     }

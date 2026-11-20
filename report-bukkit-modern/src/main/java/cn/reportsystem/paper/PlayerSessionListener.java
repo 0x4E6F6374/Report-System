@@ -1,8 +1,10 @@
 package cn.reportsystem.paper;
 
 import cn.reportsystem.core.command.Permissions;
+import cn.reportsystem.core.i18n.MessageService;
 import cn.reportsystem.core.i18n.Messages;
 import cn.reportsystem.core.model.PendingTeleport;
+import cn.reportsystem.core.model.PlayerRef;
 import cn.reportsystem.core.model.ReportStatus;
 import cn.reportsystem.core.storage.StorageException;
 
@@ -16,36 +18,45 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 
 import java.util.Optional;
+import java.util.UUID;
 
-public final class JoinListener implements Listener {
+public final class PlayerSessionListener implements Listener {
 
     private static final LegacyComponentSerializer LEGACY = LegacyComponentSerializer.legacySection();
 
     private final PaperPlugin plugin;
 
-    public JoinListener(PaperPlugin plugin) {
+    public PlayerSessionListener(PaperPlugin plugin) {
         this.plugin = plugin;
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onJoin(PlayerJoinEvent event) {
         final Player player = event.getPlayer();
+        final UUID uuid = player.getUniqueId();
+        final boolean notify = plugin.config().notify.onJoinPending
+                && player.hasPermission(Permissions.NOTIFY);
+
         plugin.scheduler().runAsync(new Runnable() {
             @Override
             public void run() {
+                // 先从库里取回玩家上次选择的语言，后续消息才不会是默认语言
+                plugin.locales().refresh(uuid);
                 consumeTeleport(player);
-            }
-        });
-        if (plugin.config().notify.onJoinPending && player.hasPermission(Permissions.NOTIFY)) {
-            plugin.scheduler().runAsync(new Runnable() {
-                @Override
-                public void run() {
+                if (notify) {
                     notifyPending(player);
                 }
-            });
-        }
+            }
+        });
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onQuit(PlayerQuitEvent event) {
+        plugin.locales().forget(event.getPlayer().getUniqueId());
+        plugin.chatTracker().forget(event.getPlayer().getUniqueId());
     }
 
     private void consumeTeleport(final Player player) {
@@ -66,16 +77,17 @@ public final class JoinListener implements Listener {
                         plugin.logger().warn("待执行传送的世界不存在: " + target.getWorld());
                         return;
                     }
-                    Location destination = new Location(world, target.getX(), target.getY(), target.getZ());
-                    plugin.scheduler().runFor(new cn.reportsystem.core.model.PlayerRef(
-                            player.getUniqueId(), player.getName()), new Runnable() {
-                        @Override
-                        public void run() {
-                            player.teleportAsync(destination);
-                            player.sendMessage(LEGACY.deserialize(
-                                    plugin.messages().format(Messages.TELEPORT_ARRIVED)));
-                        }
-                    });
+                    final Location destination = new Location(world, target.getX(), target.getY(),
+                            target.getZ());
+                    plugin.scheduler().runFor(new PlayerRef(player.getUniqueId(), player.getName()),
+                            new Runnable() {
+                                @Override
+                                public void run() {
+                                    player.teleportAsync(destination);
+                                    player.sendMessage(LEGACY.deserialize(
+                                            plugin.msgFor(player).format(Messages.TELEPORT_ARRIVED)));
+                                }
+                            });
                 }
             }, 20L);
         } catch (StorageException e) {
@@ -88,7 +100,8 @@ public final class JoinListener implements Listener {
         if (count <= 0) {
             return;
         }
-        final String text = plugin.messages().format(Messages.NOTIFY_PENDING_COUNT, "count", count);
+        final MessageService messages = plugin.msgFor(player);
+        final String text = messages.format(Messages.NOTIFY_PENDING_COUNT, "count", count);
         plugin.scheduler().runGlobal(new Runnable() {
             @Override
             public void run() {

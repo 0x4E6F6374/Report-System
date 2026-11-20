@@ -37,9 +37,9 @@ public final class ChatListener implements Listener {
 
         event.setCancelled(true);
         String reason = event.getMessage().trim();
-        String cancelKeyword = plugin.messages().raw("gui-cancel-keyword");
+        String cancelKeyword = plugin.msgFor(player).raw("gui-cancel-keyword");
         if (!cancelKeyword.isEmpty() && reason.equalsIgnoreCase(cancelKeyword)) {
-            send(player, plugin.messages().format(Messages.GUI_CLOSED));
+            send(player, plugin.msgFor(player).format(Messages.GUI_CLOSED));
             return;
         }
         submit(player, pending, reason);
@@ -51,10 +51,10 @@ public final class ChatListener implements Listener {
         try {
             SubmitOutcome outcome = plugin.service().submit(reporter, pending.getTarget(),
                     pending.getCategoryKey(), reason, bypass);
-            send(player, SubmitMessages.describe(plugin.messages(), plugin.config(), outcome));
+            send(player, SubmitMessages.describe(plugin.msgFor(player), plugin.config(), outcome));
         } catch (StorageException e) {
             plugin.logger().error("处理界面提交的举报失败", e);
-            send(player, plugin.messages().format(Messages.INTERNAL_ERROR));
+            send(player, plugin.msgFor(player).format(Messages.INTERNAL_ERROR));
         }
     }
 

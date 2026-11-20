@@ -3,6 +3,7 @@ package cn.reportsystem.paper;
 import cn.reportsystem.core.config.Categories;
 import cn.reportsystem.core.i18n.MessageService;
 import cn.reportsystem.core.i18n.Messages;
+import cn.reportsystem.core.locale.LocaleService;
 import cn.reportsystem.core.model.PlayerRef;
 import cn.reportsystem.core.platform.PlayerDirectory;
 
@@ -27,17 +28,19 @@ public final class ReportGui {
     private static final int TARGET_SIZE = 54;
     private static final LegacyComponentSerializer LEGACY = LegacyComponentSerializer.legacySection();
 
-    private final MessageService messages;
+    private final LocaleService locales;
     private final Categories categories;
     private final PlayerDirectory players;
 
-    public ReportGui(MessageService messages, Categories categories, PlayerDirectory players) {
-        this.messages = messages;
+    public ReportGui(LocaleService locales, Categories categories, PlayerDirectory players) {
+        this.locales = locales;
         this.categories = categories;
         this.players = players;
     }
 
     public boolean openTargets(Player viewer) {
+        MessageService messages = locales.messagesFor(viewer.getUniqueId());
+
         List<PlayerRef> candidates = new ArrayList<PlayerRef>();
         for (PlayerRef ref : players.onlinePlayers()) {
             if (!ref.getUuid().equals(viewer.getUniqueId())) {
@@ -55,13 +58,15 @@ public final class ReportGui {
         holder.attach(inventory);
 
         for (int slot = 0; slot < candidates.size(); slot++) {
-            inventory.setItem(slot, head(candidates.get(slot)));
+            inventory.setItem(slot, head(candidates.get(slot), messages));
         }
         viewer.openInventory(inventory);
         return true;
     }
 
     public void openCategories(Player viewer, PlayerRef target) {
+        MessageService messages = locales.messagesFor(viewer.getUniqueId());
+
         int rows = Math.min(Math.max(categories.gui.rows, 1), 6);
         GuiHolder holder = new GuiHolder(GuiHolder.Stage.CATEGORY, target, Collections.<PlayerRef>emptyList());
         Inventory inventory = Bukkit.createInventory(holder, rows * 9,
@@ -71,13 +76,13 @@ public final class ReportGui {
         int capacity = rows * 9;
         for (Categories.Category category : categories.categories.values()) {
             if (category.slot >= 0 && category.slot < capacity) {
-                inventory.setItem(category.slot, icon(category));
+                inventory.setItem(category.slot, icon(category, messages));
             }
         }
         viewer.openInventory(inventory);
     }
 
-    private ItemStack head(PlayerRef ref) {
+    private ItemStack head(PlayerRef ref, MessageService messages) {
         ItemStack item = new ItemStack(Material.PLAYER_HEAD);
         ItemMeta meta = item.getItemMeta();
         if (meta instanceof SkullMeta) {
@@ -91,7 +96,7 @@ public final class ReportGui {
         return item;
     }
 
-    private ItemStack icon(Categories.Category category) {
+    private ItemStack icon(Categories.Category category, MessageService messages) {
         Material material = Material.matchMaterial(category.material);
         if (material == null) {
             material = Material.PAPER;
