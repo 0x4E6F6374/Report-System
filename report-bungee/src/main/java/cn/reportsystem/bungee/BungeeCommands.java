@@ -29,6 +29,7 @@ public final class BungeeCommands {
         ProxyServer proxy = plugin.proxy();
         proxy.getPluginManager().registerCommand(plugin, new ReportCommand());
         proxy.getPluginManager().registerCommand(plugin, new ReportsCommand());
+        proxy.getPluginManager().registerCommand(plugin, new LanguageCmd());
     }
 
     private void reply(CommandSender sender, String text) {
@@ -57,11 +58,11 @@ public final class BungeeCommands {
         @Override
         public void execute(CommandSender sender, String[] args) {
             if (!sender.hasPermission(Permissions.USE)) {
-                reply(sender, plugin.messages().format(Messages.NO_PERMISSION));
+                reply(sender, plugin.msgFor(sender).format(Messages.NO_PERMISSION));
                 return;
             }
             if (args.length > 0 && "gui".equalsIgnoreCase(args[0])) {
-                reply(sender, plugin.messages().format(Messages.GUI_UNSUPPORTED));
+                reply(sender, plugin.msgFor(sender).format(Messages.GUI_UNSUPPORTED));
                 return;
             }
             plugin.playerCommands().submit(new CommandContext(new BungeeSender(sender), args));
@@ -85,28 +86,28 @@ public final class BungeeCommands {
         @Override
         public void execute(CommandSender sender, String[] args) {
             if (!sender.hasPermission(Permissions.ADMIN)) {
-                reply(sender, plugin.messages().format(Messages.NO_PERMISSION));
+                reply(sender, plugin.msgFor(sender).format(Messages.NO_PERMISSION));
                 return;
             }
 
             if (args.length > 0 && "reload".equalsIgnoreCase(args[0])) {
                 if (!sender.hasPermission(Permissions.RELOAD)) {
-                    reply(sender, plugin.messages().format(Messages.NO_PERMISSION));
+                    reply(sender, plugin.msgFor(sender).format(Messages.NO_PERMISSION));
                     return;
                 }
                 try {
                     plugin.reloadAll();
-                    reply(sender, plugin.messages().format(Messages.RELOADED));
+                    reply(sender, plugin.msgFor(sender).format(Messages.RELOADED));
                 } catch (IOException e) {
                     plugin.logger().error("重载配置失败", e);
-                    reply(sender, plugin.messages().format(Messages.INTERNAL_ERROR));
+                    reply(sender, plugin.msgFor(sender).format(Messages.INTERNAL_ERROR));
                 }
                 return;
             }
 
             if (args.length > 0 && "tp".equalsIgnoreCase(args[0])
                     && !sender.hasPermission(Permissions.TELEPORT)) {
-                reply(sender, plugin.messages().format(Messages.NO_PERMISSION));
+                reply(sender, plugin.msgFor(sender).format(Messages.NO_PERMISSION));
                 return;
             }
 
@@ -124,6 +125,26 @@ public final class BungeeCommands {
                     }
                 }
                 return subs;
+            }
+            return Collections.emptyList();
+        }
+    }
+
+    private final class LanguageCmd extends Command implements TabExecutor {
+
+        LanguageCmd() {
+            super("language", null, "lang");
+        }
+
+        @Override
+        public void execute(CommandSender sender, String[] args) {
+            plugin.languageCommand().handle(new CommandContext(new BungeeSender(sender), args));
+        }
+
+        @Override
+        public Iterable<String> onTabComplete(CommandSender sender, String[] args) {
+            if (args.length == 1) {
+                return plugin.languageCommand().completions(args[0]);
             }
             return Collections.emptyList();
         }

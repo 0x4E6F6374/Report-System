@@ -3,12 +3,16 @@ package cn.reportsystem.bungee;
 import cn.reportsystem.core.chat.ChatInput;
 import cn.reportsystem.core.chat.ChatTracker;
 import cn.reportsystem.core.command.AdminCommands;
+import cn.reportsystem.core.command.LanguageCommand;
 import cn.reportsystem.core.command.PlayerCommands;
 import cn.reportsystem.core.config.Actions;
 import cn.reportsystem.core.config.Categories;
 import cn.reportsystem.core.config.ConfigLoader;
 import cn.reportsystem.core.config.PluginConfig;
+import cn.reportsystem.core.i18n.LanguageBundle;
 import cn.reportsystem.core.i18n.MessageService;
+import cn.reportsystem.core.locale.LocaleService;
+import cn.reportsystem.core.locale.PlayerLocaleRepository;
 import cn.reportsystem.core.notify.WebhookNotifier;
 import cn.reportsystem.core.platform.EvidenceCollector;
 import cn.reportsystem.core.platform.PlayerDirectory;
@@ -19,6 +23,7 @@ import cn.reportsystem.core.service.ReportService;
 import cn.reportsystem.core.storage.ConnectionProvider;
 import cn.reportsystem.core.storage.DialectFactory;
 import cn.reportsystem.core.storage.JdbcPendingTeleportRepository;
+import cn.reportsystem.core.storage.JdbcPlayerLocaleRepository;
 import cn.reportsystem.core.storage.JdbcReportRepository;
 import cn.reportsystem.core.storage.ReportRepository;
 import cn.reportsystem.core.storage.SchemaMigrator;
@@ -28,20 +33,28 @@ import cn.reportsystem.core.storage.StorageType;
 import cn.reportsystem.core.util.ResourceExtractor;
 import cn.reportsystem.pool.HikariProvider;
 
+import net.md_5.bungee.api.CommandSender;
 import net.md_5.bungee.api.ProxyServer;
+import net.md_5.bungee.api.connection.ProxiedPlayer;
+import net.md_5.bungee.api.event.PlayerDisconnectEvent;
+import net.md_5.bungee.api.event.PostLoginEvent;
+import net.md_5.bungee.api.plugin.Listener;
 import net.md_5.bungee.api.plugin.Plugin;
+import net.md_5.bungee.event.EventHandler;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
-public final class ReportSystemBungee extends Plugin {
+public final class ReportSystemBungee extends Plugin implements Listener {
 
     private ProxyServer proxy;
     private PluginLogger logger;
 
     private PluginConfig config;
+    private LanguageBundle languages;
     private MessageService messages;
     private Categories categories;
     private Actions actions;
@@ -49,12 +62,15 @@ public final class ReportSystemBungee extends Plugin {
     private ConnectionProvider connections;
     private ReportService service;
     private JdbcPendingTeleportRepository teleports;
+    private PlayerLocaleRepository localeRepository;
+    private LocaleService locales;
     private PlayerDirectory players;
     private PluginScheduler scheduler;
     private ChatTracker chatTracker;
     private ChatInput chatInput;
     private PlayerCommands playerCommands;
     private AdminCommands adminCommands;
+    private LanguageCommand languageCommand;
     private TeleportExecutor teleporter;
 
     @Override
@@ -65,8 +81,10 @@ public final class ReportSystemBungee extends Plugin {
             loadConfig();
             openStorage();
             buildRuntime();
+            proxy.getPluginManager().registerListener(this, this);
             new BungeeCommands(this).register();
-            logger.info("已启用，存储 " + config.storage.type + "，代理端标识 " + config.serverId);
+            logger.info("已启用，存储 " + config.storage.type + "，语言 " + config.language
+                    + "，代理端标识 " + config.serverId);
         } catch (Exception e) {
             logger.error("启用失败，请检查配置后重载", e);
         }
@@ -74,10 +92,29 @@ public final class ReportSystemBungee extends Plugin {
 
     @Override
     public void onDisable() {
+        if (locales != null) {
+            locales.clear();
+        }
         if (connections != null) {
             connections.close();
             connections = null;
         }
+    }
+
+    @EventHandler
+    public void onPostLogin(PostLoginEvent event) {
+        final UUID uuid = event.getPlayer().getUniqueId();
+        proxy.getScheduler().runAsync(this, new Runnable() {
+            @Override
+            public void run() {
+                locales.refresh(uuid);
+            }
+        });
+    }
+
+    @EventHandler
+    public void onDisconnect(PlayerDisconnectEvent event) {
+        locales.forget(event.getPlayer().getUniqueId());
     }
 
     void reloadAll() throws IOException {
@@ -91,18 +128,24 @@ public final class ReportSystemBungee extends Plugin {
             throw new IOException("无法创建插件目录 " + folder.getAbsolutePath());
         }
         ResourceExtractor.extractIfMissing("config.yml", new File(folder, "config.yml"));
-        ResourceExtractor.extractIfMissing("messages.yml", new File(folder, "messages.yml"));
         ResourceExtractor.extractIfMissing("categories.yml", new File(folder, "categories.yml"));
         ResourceExtractor.extractIfMissing("actions.yml", new File(folder, "actions.yml"));
+        ResourceExtractor.extractLanguages(new File(folder, "lang"));
 
         config = ConfigLoader.readOrCreate(new File(folder, "config.yml"), PluginConfig.class);
-        messages = MessageService.load(new File(folder, "messages.yml"));
+        languages = LanguageBundle.load(new File(folder, "lang"), config.language);
+        messages = languages.forLocale(config.language);
         categories = ConfigLoader.readOrCreate(new File(folder, "categories.yml"), Categories.class);
         actions = ConfigLoader.readOrCreate(new File(folder, "actions.yml"), Actions.class);
+
+        for (String warning : languages.warnings()) {
+            logger.warn("语言包: " + warning);
+        }
 
         List<String> problems = new ArrayList<String>();
         problems.addAll(config.validate());
         problems.addAll(categories.validate());
+        problems.addAll(languages.validate());
         if (!problems.isEmpty()) {
             throw new IOException("配置校验未通过: " + problems);
         }
@@ -137,13 +180,27 @@ public final class ReportSystemBungee extends Plugin {
         chatTracker = new ChatTracker(Math.max(config.evidence.chatLines * 2, 16));
         chatInput = new ChatInput();
 
+        if (locales == null) {
+            localeRepository = new JdbcPlayerLocaleRepository(connections, dialect);
+            locales = new LocaleService(localeRepository, languages, config.language, logger);
+        } else {
+            locales.rebind(languages);
+        }
+
         EvidenceCollector evidence = new BungeeEvidenceCollector(proxy, config.serverId, config);
         WebhookNotifier webhook = new WebhookNotifier(config.notify.webhook, logger);
         service = new ReportService(repository, config, categories, actions, logger, scheduler,
                 evidence, webhook, new BungeeConsoleRunner(proxy));
         teleporter = new BungeeTeleportExecutor(proxy, teleports);
-        adminCommands = new AdminCommands(service, messages, teleporter, logger);
-        playerCommands = new PlayerCommands(service, messages, players, config, logger);
+        adminCommands = new AdminCommands(service, locales, teleporter, logger);
+        playerCommands = new PlayerCommands(service, locales, players, config, logger);
+        languageCommand = new LanguageCommand(locales);
+    }
+
+    MessageService msgFor(CommandSender sender) {
+        UUID uuid = sender instanceof ProxiedPlayer
+                ? ((ProxiedPlayer) sender).getUniqueId() : null;
+        return locales.messagesFor(uuid);
     }
 
     ProxyServer proxy() {
@@ -156,6 +213,14 @@ public final class ReportSystemBungee extends Plugin {
 
     MessageService messages() {
         return messages;
+    }
+
+    LocaleService locales() {
+        return locales;
+    }
+
+    LanguageCommand languageCommand() {
+        return languageCommand;
     }
 
     Categories categories() {
